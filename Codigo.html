@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Leitor de Código de Barras</title>
+    <!-- Incluindo QuaggaJS via CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/quagga"></script>
+    <style>
+        #video {
+            transform: scaleX(-1);
+            /* Espelha a imagem horizontalmente */
+        }
+    </style>
+</head>
+
+<body>
+    <video id="video" width="320" height="240"></video>
+    <canvas id="canvas"></canvas>
+    <p id="result"></p>
+    <button id="btnLer">Ler Código de Barras</button>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const video = document.getElementById('video');
+            const canvas = document.getElementById('canvas');
+            const result = document.getElementById('result');
+            const btnLer = document.getElementById('btnLer');
+            let scannerTimeout;
+
+            btnLer.addEventListener('click', () => {
+                startScanner();
+                // Iniciar o temporizador de 30 segundos
+                scannerTimeout = setTimeout(() => {
+                    stopScanner();
+                    alert("Código de barras não identificado.");
+                }, 30000); // 30 segundos
+            });
+
+            function startScanner() {
+                Quagga.init({
+                    inputStream: {
+                        name: "Live",
+                        type: "LiveStream",
+                        target: video
+                    },
+                    decoder: {
+                        readers: ["ean_reader"]
+                    }
+                }, function (err) {
+                    if (err) {
+                        console.error(err);
+                        return;
+                    }
+                    console.log("Initialization finished. Ready to start");
+                    Quagga.start();
+                });
+
+                Quagga.onProcessed((result) => {
+                    const drawingCtx = Quagga.canvas.ctx.overlay;
+                    const drawingCanvas = Quagga.canvas.dom.overlay;
+
+                    if (result) {
+                        if (result.boxes) {
+                            drawingCtx.clearRect(0, 0, parseInt(drawingCanvas.getAttribute("width")), parseInt(drawingCanvas.getAttribute("height")));
+                            result.boxes.filter((box) => {
+                                return box !== result.box;
+                            }).forEach((box) => {
+                                Quagga.ImageDebug.drawPath(box, { x: 0, y: 1 }, drawingCtx, { color: "green", lineWidth: 2 });
+                            });
+                        }
+
+                        if (result.box) {
+                            Quagga.ImageDebug.drawPath(result.box, { x: 0, y: 1 }, drawingCtx, { color: "#00F", lineWidth: 2 });
+                        }
+
+                        if (result.codeResult && result.codeResult.code) {
+                            // Se um código de barras é identificado, limpar o temporizador
+                            clearTimeout(scannerTimeout);
+                            result.textContent = result.codeResult.code;
+                            Quagga.stop();
+                        }
+                    }
+                });
+
+                Quagga.onDetected((result) => {
+                    result.textContent = result.codeResult.code;
+                    Quagga.stop();
+                });
+            }
+
+            function stopScanner() {
+                Quagga.stop();
+            }
+        });
+    </script>
+</body>
+
+</html>
